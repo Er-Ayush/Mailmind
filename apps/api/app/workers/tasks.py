@@ -1,7 +1,9 @@
 import logging
 
-from sqlalchemy import select
+import redis as redis_lib
+from sqlalchemy import delete, select
 
+from app.config import get_settings
 from app.db_sync import SyncSession
 from app.embeddings import embed_texts
 from app.gmail.parser import chunk_text
@@ -51,10 +53,26 @@ def embed_pending() -> int:
     Chunks from MANY emails are packed into each API request (free-tier daily
     request caps make per-email requests untenable: 827 emails must not mean
     827 requests). Commits after every API batch so progress survives 429s.
-    """
-    from app.config import get_settings
 
-    batch_size = get_settings().embed_batch_size
+    A Redis lock ensures only ONE embedder runs at a time — beat, sync-chained,
+    and manual triggers would otherwise race on the same emails.
+    """
+    settings = get_settings()
+    r = redis_lib.from_url(settings.redis_url)
+    lock = r.lock("mailmind:embed_pending", timeout=3600, blocking=False)
+    if not lock.acquire(blocking=False):
+        logger.info("embed_pending already running; skipping")
+        return 0
+    try:
+        return _embed_pending_locked(settings.embed_batch_size)
+    finally:
+        try:
+            lock.release()
+        except Exception:
+            pass  # lock may have timed out
+
+
+def _embed_pending_locked(batch_size: int) -> int:
     embedded_count = 0
     with SyncSession() as db:
         emails = (
@@ -67,6 +85,10 @@ def embed_pending() -> int:
             .scalars()
             .all()
         )
+        # clear stray chunks left by a previously crashed/raced run
+        if emails:
+            db.execute(delete(EmailChunk).where(EmailChunk.email_id.in_([e.id for e in emails])))
+            db.commit()
 
         # 1. chunk everything first (cheap, local)
         pending: list[tuple[Email, int, str]] = []  # (email, chunk_index, content)
