@@ -46,7 +46,15 @@ def sync_one_account(account_id: int) -> int:
 
 @celery.task(name="app.workers.tasks.embed_pending")
 def embed_pending() -> int:
-    """Chunk + embed emails that haven't been embedded yet. Idempotent and resumable."""
+    """Chunk + embed emails that haven't been embedded yet. Idempotent and resumable.
+
+    Chunks from MANY emails are packed into each API request (free-tier daily
+    request caps make per-email requests untenable: 827 emails must not mean
+    827 requests). Commits after every API batch so progress survives 429s.
+    """
+    from app.config import get_settings
+
+    batch_size = get_settings().embed_batch_size
     embedded_count = 0
     with SyncSession() as db:
         emails = (
@@ -59,21 +67,38 @@ def embed_pending() -> int:
             .scalars()
             .all()
         )
+
+        # 1. chunk everything first (cheap, local)
+        pending: list[tuple[Email, int, str]] = []  # (email, chunk_index, content)
         for email in emails:
-            # subject gets prepended so it's searchable within every chunk
             base = f"Subject: {email.subject or ''}\nFrom: {email.sender or ''}\n\n"
             chunks = chunk_text(base + (email.body_text or email.snippet or ""))
             if not chunks:
                 email.embedded = True
+                embedded_count += 1
                 continue
-            vectors = embed_texts(chunks)
-            for idx, (content, vec) in enumerate(zip(chunks, vectors, strict=True)):
+            pending.extend((email, idx, content) for idx, content in enumerate(chunks))
+        db.commit()
+
+        # 2. embed in cross-email batches: one API request per `batch_size` chunks
+        for i in range(0, len(pending), batch_size):
+            batch = pending[i : i + batch_size]
+            vectors = embed_texts([content for _, _, content in batch])
+            touched: set[int] = set()
+            for (email, idx, content), vec in zip(batch, vectors, strict=True):
                 db.add(
                     EmailChunk(email_id=email.id, chunk_index=idx, content=content, embedding=vec)
                 )
-            email.embedded = True
-            embedded_count += 1
-            db.commit()  # commit per email — resumable if rate-limited mid-run
+                touched.add(email.id)
+            # an email is done when its last chunk is in this or an earlier batch
+            done_ids = {
+                e.id for e, _, _ in batch
+            } - {e.id for e, _, _ in pending[i + batch_size :]}
+            for email, _, _ in batch:
+                if email.id in done_ids and not email.embedded:
+                    email.embedded = True
+                    embedded_count += 1
+            db.commit()  # commit per API batch — resumable if rate-limited mid-run
     logger.info("embed_pending embedded=%d", embedded_count)
     return embedded_count
 

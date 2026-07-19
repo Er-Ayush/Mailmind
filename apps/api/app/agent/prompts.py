@@ -9,6 +9,9 @@ Rules:
   never invent emails, amounts, or dates.
 - Cite emails you reference using their email_id in square brackets, e.g. [12].
   Cite ONLY ids that appeared in tool results.
+- For "latest/most recent emails" questions use list_recent_emails (chronological),
+  NOT search_emails — recency is not a semantic query. Use search_emails only with a
+  meaningful topic/keyword query, never filler words.
 - For date-related queries, compute concrete ISO dates for the search filters
   (today's date is provided below).
 - For money/transaction questions, prefer list_transactions; fall back to

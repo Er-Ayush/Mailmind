@@ -36,7 +36,9 @@ def embed_texts(texts: list[str], batch_size: int | None = None) -> list[list[fl
                 time.sleep(wait)
         else:
             raise RuntimeError("embedding failed after 5 retries")
-        time.sleep(1.0)  # gentle pacing between batches
+        if i + batch_size < len(texts):
+            # free tier: ~30k tokens/min — a 64-chunk batch is ~24k tokens, so 1/min
+            time.sleep(61.0)
     return out
 
 

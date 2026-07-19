@@ -56,6 +56,34 @@ def search_emails(
 
 
 @tool
+def list_recent_emails(limit: int = 10, sender: str | None = None) -> list[dict]:
+    """List the most recent emails by date (no search — use for 'latest/recent emails'
+    questions). Optional sender substring filter."""
+    ctx = get_context()
+    with SyncSession() as db:
+        q = (
+            select(Email)
+            .where(Email.account_id.in_(ctx.account_ids))
+            .order_by(Email.internal_date.desc())
+            .limit(min(limit, 25))
+        )
+        if sender:
+            q = q.where(Email.sender.ilike(f"%{sender}%"))
+        emails = db.execute(q).scalars().all()
+        return [
+            {
+                "email_id": e.id,
+                "gmail_id": e.gmail_id,
+                "subject": e.subject,
+                "sender": e.sender,
+                "date": e.internal_date.isoformat() if e.internal_date else None,
+                "snippet": (e.snippet or "")[:200],
+            }
+            for e in emails
+        ]
+
+
+@tool
 def get_email(email_id: int) -> dict:
     """Read one email in full by its email_id (from search results)."""
     ctx = get_context()
@@ -194,6 +222,7 @@ def forward_emails(email_ids: list[int], to: str, note: str = "") -> str:
 
 ALL_TOOLS = [
     search_emails,
+    list_recent_emails,
     get_email,
     list_transactions,
     extract_transactions,
