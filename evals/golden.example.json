@@ -1,0 +1,11 @@
+[
+  {
+    "query": "when did my last Amazon order arrive?",
+    "expected_email_ids": [12, 47],
+    "note": "Fill with REAL queries against YOUR inbox after first sync. expected_email_ids = emails table ids that a correct answer must retrieve."
+  },
+  {
+    "query": "electricity bill amount last month",
+    "expected_email_ids": [88]
+  }
+]
