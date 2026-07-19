@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # Sync behavior
     sync_days: int = 30
-    embed_batch_size: int = 64
+    embed_batch_size: int = 32  # ~12k tokens/batch — stays under free-tier 30k TPM
 
     frontend_origin: str = "http://localhost:3000"
 
