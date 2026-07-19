@@ -41,7 +41,7 @@ flowchart LR
 | Frontend | Next.js 16 + Tailwind 4, SSE streaming chat |
 | Migrations | Alembic |
 
-Full design doc: [`docs/SPEC.md`](docs/SPEC.md)
+Full design doc: [`docs/SPEC.md`](docs/SPEC.md) · Tech deep-dive & learning guide: [`docs/DEEP-DIVE.md`](docs/DEEP-DIVE.md)
 
 ## Quickstart
 
