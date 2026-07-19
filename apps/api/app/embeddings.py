@@ -13,6 +13,7 @@ def embedder() -> GoogleGenerativeAIEmbeddings:
     return GoogleGenerativeAIEmbeddings(
         model=s.gemini_embedding_model,
         google_api_key=s.gemini_api_key,
+        output_dimensionality=s.embedding_dim,  # match vector(768) column
     )
 
 

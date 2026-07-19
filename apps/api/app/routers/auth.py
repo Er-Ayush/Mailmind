@@ -47,17 +47,31 @@ def _flow() -> Flow:
 async def google_login() -> RedirectResponse:
     if not get_settings().google_client_id:
         raise HTTPException(500, "GOOGLE_CLIENT_ID not configured — fill apps/api/.env")
-    auth_url, _state = _flow().authorization_url(
+    flow = _flow()
+    auth_url, _state = flow.authorization_url(
         access_type="offline",  # get a refresh token
         prompt="consent",  # force refresh token even on re-auth
         include_granted_scopes="true",
     )
-    return RedirectResponse(auth_url)
+    resp = RedirectResponse(auth_url)
+    # PKCE: the callback runs in a fresh request, so carry the verifier in a
+    # short-lived httponly cookie
+    resp.set_cookie(
+        "oauth_code_verifier",
+        flow.code_verifier,
+        max_age=600,
+        httponly=True,
+        samesite="lax",
+    )
+    return resp
 
 
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)) -> RedirectResponse:
     flow = _flow()
+    verifier = request.cookies.get("oauth_code_verifier")
+    if verifier:
+        flow.code_verifier = verifier
     try:
         flow.fetch_token(authorization_response=str(request.url))
     except Exception as exc:
@@ -110,6 +124,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)) 
     await db.commit()
 
     resp = RedirectResponse(get_settings().frontend_origin)
+    resp.delete_cookie("oauth_code_verifier")
     resp.set_cookie(
         SESSION_COOKIE,
         create_session_token(user.id),
