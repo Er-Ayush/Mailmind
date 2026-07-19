@@ -24,8 +24,10 @@ class Settings(BaseSettings):
     # Gemini (aistudio.google.com/apikey)
     gemini_api_key: str = ""
     gemini_chat_model: str = "gemini-flash-latest"  # alias -> current flash generation
+    # Embeddings: "local" (sentence-transformers, free/unlimited) or "gemini" (API)
+    embedding_provider: str = "local"
     gemini_embedding_model: str = "models/gemini-embedding-2"
-    embedding_dim: int = 768  # gemini-embedding-001 supports 768/1536/3072
+    embedding_dim: int = 768
 
     # Sessions / crypto — override both in .env for anything beyond local dev.
     # FERNET_KEY generate: python -c
