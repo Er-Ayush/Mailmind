@@ -76,3 +76,12 @@ def embed_pending() -> int:
             db.commit()  # commit per email — resumable if rate-limited mid-run
     logger.info("embed_pending embedded=%d", embedded_count)
     return embedded_count
+
+
+@celery.task(name="app.workers.tasks.extract_transactions_task")
+def extract_transactions_task(account_ids: list[int]) -> int:
+    """Extract transactions from recent transactional-looking emails."""
+    from app.txn_extract import extract_pending
+
+    with SyncSession() as db:
+        return extract_pending(db, account_ids)
