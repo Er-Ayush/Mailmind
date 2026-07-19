@@ -1,11 +1,18 @@
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import health
+from app.routers import auth, health, sync
+
+if get_settings().app_env == "development":
+    # Allow Google OAuth over http://localhost and tolerate Google's scope reordering
+    os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
+    os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 
 @asynccontextmanager
@@ -23,7 +30,16 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
     )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[settings.frontend_origin],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(health.router)
+    app.include_router(auth.router)
+    app.include_router(sync.router)
 
     @app.get("/", tags=["root"])
     async def root() -> dict[str, str]:
