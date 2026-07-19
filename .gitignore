@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Env / secrets
+.env
+*.pem
+credentials*.json
+token*.json
+
+# Node (Phase 2)
+node_modules/
+.next/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
